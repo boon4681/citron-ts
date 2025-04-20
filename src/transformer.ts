@@ -122,14 +122,17 @@ export const transform = <T extends OpenAPIV3.Document>(schema: T) => {
                         }
                         if (k.requestBody && (k.requestBody as OpenAPIV3.RequestBodyObject).content['application/json']) {
                             const refless = (k.requestBody as OpenAPIV3.RequestBodyObject).content!['application/json']
-                            // console.log(refless)
+                            result.write(toTypeBox(refless.schema))
+                            result.write(",").newLine()
+                        }
+                        if (k.requestBody && (k.requestBody as OpenAPIV3.RequestBodyObject).content['multipart/form-data']) {
+                            const refless = (k.requestBody as OpenAPIV3.RequestBodyObject).content!['multipart/form-data']
                             result.write(toTypeBox(refless.schema))
                             result.write(",").newLine()
                         }
                         {
                             result.write("fetch")
                         }
-                        // console.log(k?.parameters)
                     }).write("] as const")
                 })
                 if (i < methods.length - 1) result.write(",").newLine()
@@ -141,7 +144,7 @@ export const transform = <T extends OpenAPIV3.Document>(schema: T) => {
     result.write("export interface $Types").block(() => {
         let counter = 1;
         for (const path in schema.paths) {
-            result.write(JSON.stringify(path)).write(": ").write("Citron<typeof $" + counter + ">").newLine()
+            result.write(JSON.stringify(path)).write(": ").write("citron<typeof $" + counter + ">").newLine()
             counter++;
         }
     })
