@@ -1,0 +1,37 @@
+{
+  "name": "@boon4681/citron-ts",
+  "version": "0.0.1",
+  "main": "index.js",
+  "license": "MIT",
+  "author": "boon4681 <46645814+boon4681@users.noreply.github.com>",
+  "homepage": "https://www.boon4681.com/",
+  "repository": "https://github.com/boon4681/citron-ts.git",
+  "bin": {
+    "citron": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "tsx ./src/cli.ts",
+    "test": "tsx ./src/test.ts",
+    "build": "tsup src/cli.ts --dts --format esm,cjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "openapi-types": "^12.1.3",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.10.1",
+    "@sinclair/typebox": "^0.34.33",
+    "code-block-writer": "^13.0.3",
+    "commander": "^13.1.0"
+  }
+}
