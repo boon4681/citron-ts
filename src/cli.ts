@@ -1,9 +1,12 @@
-#!/usr/bin/env node
-
-import { intro, outro, spinner } from "@clack/prompts";
+import 'dotenv/config'
+import { intro, log, outro, spinner } from "@clack/prompts";
 import { Command } from "commander";
 import { transform } from "./transformer";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { load } from "./loader";
+import { OpenAPIV3 } from 'openapi-types';
+import { exit } from 'node:process';
+import { join } from 'node:path';
 
 const program = new Command();
 
@@ -14,31 +17,36 @@ program
 
 program.command('pull')
     .description('Generate ts from openapi.json')
-    .argument('<url>', 'openapi.json url')
-    .option('--cookie <char>', 'cookie')
     .action(async (str, options) => {
         intro(`Generating ts file`);
-        const s = spinner();
-        s.start('Fetching openapi.json');
-        const f = await fetch(str, {
-            headers: {
-                "Cookie": options.cookie
-            },
-            credentials: 'same-origin'
-        }).then(a => a.json()).catch(a => {
-            console.error(a)
-        })
-        await new Promise((rv) => setTimeout(rv, 500))
-        s.stop('Fetching openapi.json');
-        s.start('Transforming ...');
-        const result = transform(f)
-        if(!result) throw Error("FAILED")
-        s.stop('Transforming ...');
-        if (!existsSync("./lib")) {
-            mkdirSync("./lib")
+        const s = spinner()
+        const config = await load()
+        let openapi_content: OpenAPIV3.Document | undefined = undefined
+        if ('url' in config.schema) {
+            s.start('Fetching openapi.json');
+            openapi_content = await fetch(config.schema.url, {
+                headers: {
+                    "Cookie": config.schema.cookie ?? ''
+                },
+                credentials: 'same-origin'
+            }).then(a => a.json()).catch(a => {
+                log.error(a)
+            })
+            await new Promise((rv) => setTimeout(rv, 500))
+            s.stop('Fetching openapi.json');
         }
-        writeFileSync("./lib/citron.ts", result)
-        
+        if (!openapi_content) {
+            log.error("Cannot find openapi document.");
+            exit(1)
+        }
+        s.start('Transforming to typescript');
+        const result = transform(openapi_content)
+        if (!result) throw Error("FAILED")
+        s.stop('Transforming to typescript');
+        if (!existsSync(config.out!)) {
+            mkdirSync(config.out!)
+        }
+        writeFileSync(join(config.out!,"citron.ts"), result)
         outro(`You're all set!`);
     });
 
