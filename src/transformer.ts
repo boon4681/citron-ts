@@ -1,7 +1,6 @@
 import { OpenAPIV2, OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
 import CodeBlockWriter from "code-block-writer";
 import { base, imports } from "./template";
-import { writeFileSync } from "node:fs";
 
 const _methods = ["get", "put", "post", "patch"]
 
@@ -45,7 +44,6 @@ function toTypeBox(schema: any): string {
             return `Type.Object({${Object.entries(convertedProps).map(([a, b]) => a + ":" + b).join(",")}})`;
         }
         default:
-            console.log(schema.type)
             return `Type.Any()`; // fallback
     }
 }

@@ -32,6 +32,12 @@ type citron<M extends MethodObject> = {
     : never;
 }
 
+type u<F, O> = (
+    ...args: F extends extract_method<Value<infer V>, infer O>
+        ? { [K in keyof V]: V[K] extends TSchema ? Static<V[K]> : V[K] }
+        : never
+) => O
+
 export const Citron = <P extends keyof $Types, M extends keyof $Types[P]>(path: P) => {
     return {
         get: (a: any) => a,
@@ -40,11 +46,7 @@ export const Citron = <P extends keyof $Types, M extends keyof $Types[P]>(path: 
         patch: (a: any) => a,
         delete: (a: any) => a
     } as unknown as {
-        [K in M]: <O, F extends (
-            ...args: $Types[P][K] extends extract_method<Value<infer V>, infer O>
-                ? { [K in keyof V]: V[K] extends TSchema ? Static<V[K]> : V[K] }
-                : never
-        ) => O>(t: F) => typeof t
+        [K in M]: <O>(t: u<$Types[P][K],O>) => typeof t
     }
 }
 `
