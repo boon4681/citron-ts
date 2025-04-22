@@ -1,6 +1,6 @@
 {
   "name": "@boon4681/citron-ts",
-  "version": "0.0.2b",
+  "version": "0.0.2c",
   "license": "MIT",
   "author": "boon4681 <46645814+boon4681@users.noreply.github.com>",
   "homepage": "https://www.boon4681.com/",
@@ -12,6 +12,10 @@
     "dist",
     "src"
   ],
+  "module": "./dist/index.mjs",
+  "main": "./dist/index.js",
+  "types": "./dist",
+  "typings": "./dist/index.d.ts",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -41,15 +45,15 @@
   "exports": {
 		".": {
 			"import": {
-				"types": "./index.d.mts",
-				"default": "./index.mjs"
+				"types": "./dist/index.d.mts",
+				"default": "./dist/index.mjs"
 			},
 			"require": {
-				"types": "./index.d.ts",
-				"default": "./index.js"
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
 			},
-			"types": "./index.d.mts",
-			"default": "./index.mjs"
+			"types": "./dist/index.d.mts",
+			"default": "./dist/index.mjs"
 		}
   }
 }
