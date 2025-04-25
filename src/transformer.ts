@@ -2,7 +2,7 @@ import { OpenAPIV2, OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
 import CodeBlockWriter from "code-block-writer";
 import { base, imports } from "./template";
 
-const _methods = ["get", "put", "post", "patch"]
+const _methods = ["get", "put", "post", "patch", "delete"]
 
 const createWriter = () => {
     return new CodeBlockWriter({
@@ -57,7 +57,7 @@ export const transform = <T extends OpenAPIV3.Document>(schema: T) => {
     let counter = 1
     for (const path in schema.paths) {
         result.write("const $" + counter + " = c<" + JSON.stringify(path) + ">()").write("(").inlineBlock(() => {
-            let methods = Object.keys(schema['paths'][path] ?? {}).filter(a => _methods.includes(a as any)) as unknown as ("get" | "put" | "post" | "patch")[]
+            let methods = Object.keys(schema['paths'][path] ?? {}).filter(a => _methods.includes(a as any)) as unknown as ("get" | "put" | "post" | "patch" | "delete")[]
             for (let i = 0; i < methods.length; i++) {
                 const method = methods[i]
                 result.write(method + "").write(": ").inlineBlock(() => {
