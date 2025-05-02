@@ -1,6 +1,6 @@
 
 export const imports = String.raw`
-import { Type, type TSchema, type Static } from '@sinclair/typebox'
+import { Type, type TSchema, type Static, type TOptional } from '@sinclair/typebox'
 `
 
 export const base = String.raw`
@@ -32,6 +32,8 @@ type citron<M extends MethodObject> = {
     : never;
 }
 
+type OptionalStatic<T extends TSchema> = T extends TOptional<infer K> ? Static<K> | undefined : Static<T>
+
 export const Citron = <P extends keyof $Types, M extends keyof $Types[P]>(path: P) => {
     return {
         get: (a: any) => a,
@@ -42,7 +44,7 @@ export const Citron = <P extends keyof $Types, M extends keyof $Types[P]>(path: 
     } as unknown as {
         [K in M]: <O, F extends (
             ...args: $Types[P][K] extends extract_method<Value<infer V>, infer O>
-                ? { [K in keyof V]: V[K] extends TSchema ? Static<V[K]> : V[K] }
+                ? { [K in keyof V]: V[K] extends TSchema ? OptionalStatic<V[K]> : V[K] }
                 : never
         ) => O>(t: F) => typeof t
     }
