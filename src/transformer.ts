@@ -36,9 +36,8 @@ function toTypeBox(schema: any): string {
 
             for (const key of Object.keys(props)) {
                 const propSchema = toTypeBox(props[key]);
-                convertedProps[key] = required.includes(key)
-                    ? propSchema
-                    : ` Type.Optional(${propSchema})`;
+                let schema = props[key].nullable ? ` Nullable(${propSchema})` : propSchema
+                convertedProps[key] = required.includes(key) ? schema : ` Type.Optional(${schema})`;
             }
 
             return `Type.Object({${Object.entries(convertedProps).map(([a, b]) => a + ":" + b).join(",")}})`;
@@ -76,6 +75,7 @@ export const transform = <T extends OpenAPIV3.Document>(schema: T) => {
                                         if (!k.required) {
                                             paths_result.write("Type.Optional(")
                                         }
+
                                         if (k.schema) {
                                             const refless = k.schema as OpenAPIV3.SchemaObject
                                             paths_result.write(toTypeBox(k.schema))
@@ -95,6 +95,7 @@ export const transform = <T extends OpenAPIV3.Document>(schema: T) => {
                                 if (all_optional) {
                                     query_result.write("Type.Optional(")
                                 }
+
                                 query_result.write("Type.Object(").inlineBlock(() => {
                                     for (let i = 0; i < query.length; i++) {
                                         const k = query[i]
@@ -125,7 +126,8 @@ export const transform = <T extends OpenAPIV3.Document>(schema: T) => {
                         }
                         if (k.requestBody && (k.requestBody as OpenAPIV3.RequestBodyObject).content['multipart/form-data']) {
                             const refless = (k.requestBody as OpenAPIV3.RequestBodyObject).content!['multipart/form-data']
-                            result.write(toTypeBox(refless.schema))
+                            if (refless.schema!)
+                                result.write(toTypeBox(refless.schema))
                             result.write(",").newLine()
                         }
                         {

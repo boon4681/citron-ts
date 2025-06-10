@@ -1,6 +1,6 @@
 {
   "name": "@boon4681/citron-ts",
-  "version": "0.0.2g",
+  "version": "0.0.2f",
   "license": "MIT",
   "author": "boon4681 <46645814+boon4681@users.noreply.github.com>",
   "homepage": "https://www.boon4681.com/",
@@ -16,7 +16,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "tsx ./src/cli.ts",
+    "dev": "tsx ./src/cli.ts pull",
     "test": "tsx ./src/test.ts",
     "build": "tsx build.ts"
   },

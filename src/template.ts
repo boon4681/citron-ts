@@ -4,6 +4,10 @@ import { Type, type TSchema, type Static, type TOptional } from '@sinclair/typeb
 `
 
 export const base = String.raw`
+const Nullable = <T extends TSchema>(T: T) => {
+    return Type.Union([T, Type.Null()])
+}
+
 type Fetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 type method = "get" | "post" | "delete" | "patch" | "put"
