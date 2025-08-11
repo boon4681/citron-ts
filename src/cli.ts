@@ -30,6 +30,7 @@ program.command('pull')
                 },
                 credentials: 'same-origin'
             }).then(a => a.json()).catch(a => {
+                console.log(a)
                 log.error(a)
             })
             await new Promise((rv) => setTimeout(rv, 500))
