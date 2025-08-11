@@ -36,7 +36,7 @@ type citron<M extends MethodObject> = {
     : never;
 }
 
-type OptionalStatic<T extends TSchema> = T extends TOptional<infer K> ? Static<K> | undefined : Static<T>
+type OptionalStatic<T extends TSchema> = T extends TOptional<infer K> ? Static<K> | undefined | void : Static<T>
 
 export const Citron = <P extends keyof $Types, M extends keyof $Types[P]>(path: P) => {
     return {
