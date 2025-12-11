@@ -15,6 +15,10 @@ const createWriter = () => {
 
 function toTypeBox(schema: any): string {
     if (!schema || typeof schema !== 'object') throw new Error('Invalid schema');
+    if ("anyOf" in schema) {
+        const variants = schema.anyOf.map((subSchema: any) => toTypeBox(subSchema));
+        return `Type.Union([${variants.join(', ')}])`;
+    }
     switch (schema.type) {
         case 'string':
             return "Type.String()";
