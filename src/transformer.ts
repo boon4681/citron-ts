@@ -19,6 +19,14 @@ function toTypeBox(schema: any): string {
         const variants = schema.anyOf.map((subSchema: any) => toTypeBox(subSchema));
         return `Type.Union([${variants.join(', ')}])`;
     }
+    if("oneOf" in schema) {
+        const variants = schema.oneOf.map((subSchema: any) => toTypeBox(subSchema));
+        return `Type.Union([${variants.join(', ')}])`;
+    }
+    if ("allOf" in schema) {
+        const variants = schema.allOf.map((subSchema: any) => toTypeBox(subSchema));
+        return `Type.Intersect([${variants.join(', ')}])`;
+    }
     switch (schema.type) {
         case 'string':
             return "Type.String()";
