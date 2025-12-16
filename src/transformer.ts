@@ -19,7 +19,7 @@ function toTypeBox(schema: any): string {
         const variants = schema.anyOf.map((subSchema: any) => toTypeBox(subSchema));
         return `Type.Union([${variants.join(', ')}])`;
     }
-    if("oneOf" in schema) {
+    if ("oneOf" in schema) {
         const variants = schema.oneOf.map((subSchema: any) => toTypeBox(subSchema));
         return `Type.Union([${variants.join(', ')}])`;
     }
@@ -131,12 +131,26 @@ export const transform = <T extends OpenAPIV3.Document>(schema: T) => {
                                 result.write(",").newLine()
                             }
                         }
-                        if (k.requestBody && (k.requestBody as OpenAPIV3.RequestBodyObject).content['application/json']) {
+                        if (
+                            k.requestBody &&
+                            (k.requestBody as OpenAPIV3.RequestBodyObject).content['application/json'] &&
+                            (k.requestBody as OpenAPIV3.RequestBodyObject).content['multipart/form-data']
+                        ) {
+                            const refless_json = (k.requestBody as OpenAPIV3.RequestBodyObject).content!['application/json']
+                            const refless_form = (k.requestBody as OpenAPIV3.RequestBodyObject).content!['multipart/form-data']
+                            result.write("Type.Union([")
+                            result.write(toTypeBox(refless_json.schema))
+                            result.write(",")
+                            result.write(toTypeBox(refless_form.schema))
+                            result.write("])")
+                            result.write(",").newLine()
+                        }
+                        else if (k.requestBody && (k.requestBody as OpenAPIV3.RequestBodyObject).content['application/json']) {
                             const refless = (k.requestBody as OpenAPIV3.RequestBodyObject).content!['application/json']
                             result.write(toTypeBox(refless.schema))
                             result.write(",").newLine()
                         }
-                        if (k.requestBody && (k.requestBody as OpenAPIV3.RequestBodyObject).content['multipart/form-data']) {
+                        else if (k.requestBody && (k.requestBody as OpenAPIV3.RequestBodyObject).content['multipart/form-data']) {
                             const refless = (k.requestBody as OpenAPIV3.RequestBodyObject).content!['multipart/form-data']
                             if (refless.schema!)
                                 result.write(toTypeBox(refless.schema))
