@@ -14,5 +14,11 @@ export const configSchema = Type.Object({
         configURLSchema,
         configFileSchema
     ]),
-    out: Type.Optional(Type.String({ default: './src' }))
+    out: Type.Optional(Type.String({ default: './src' })),
+    experimental: Type.Optional(Type.Object({
+        adapter: Type.Optional(Type.Union([
+            Type.Literal('function'),
+            Type.Literal('builder')
+        ]))
+    }))
 }, { additionalProperties: false })

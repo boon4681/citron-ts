@@ -1,6 +1,10 @@
 import { OpenAPIV2, OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
 import CodeBlockWriter from "code-block-writer";
-import { base, imports } from "./template";
+import { base, imports, builderBase, builderImports } from "./template";
+
+export interface TransformOptions {
+    adapter?: 'function' | 'builder'
+}
 
 const _methods = ["get", "put", "post", "patch", "delete"]
 
@@ -59,7 +63,8 @@ function toTypeBox(schema: any): string {
     }
 }
 
-export const transform = <T extends OpenAPIV3.Document>(schema: T) => {
+export const transform = <T extends OpenAPIV3.Document>(schema: T, options: TransformOptions = {}) => {
+    if (options.adapter === 'builder') return transformBuilder(schema)
     if (!schema.paths) return
     const result = createWriter()
     result.writeLine(imports)
@@ -174,5 +179,108 @@ export const transform = <T extends OpenAPIV3.Document>(schema: T) => {
             counter++;
         }
     })
+    return result.toString()
+}
+
+type Slot = { name: 'path' | 'query' | 'body'; schema: string; optional: boolean }
+
+const paramsObject = (params: OpenAPIV3.ParameterObject[]): string => {
+    const entries = params.map(p => {
+        const inner = p.schema ? toTypeBox(p.schema) : 'Type.Any()'
+        const v = p.required ? inner : `Type.Optional(${inner})`
+        return `${JSON.stringify(p.name)}: ${v}`
+    })
+    return `Type.Object({${entries.join(', ')}})`
+}
+
+const bodySlot = (k: OpenAPIV3.OperationObject): Slot | undefined => {
+    const rb = k.requestBody as OpenAPIV3.RequestBodyObject | undefined
+    if (!rb || !rb.content) return undefined
+    const json = rb.content['application/json']
+    const form = rb.content['multipart/form-data']
+    let schema: string | undefined
+    if (json && form) schema = `Type.Union([${toTypeBox(json.schema)}, ${toTypeBox(form.schema)}])`
+    else if (json) schema = toTypeBox(json.schema)
+    else if (form && form.schema) schema = toTypeBox(form.schema)
+    if (!schema) return undefined
+    return { name: 'body', schema, optional: rb.required !== true }
+}
+
+const methodSlots = (k: OpenAPIV3.OperationObject): Slot[] => {
+    const slots: Slot[] = []
+    if (k.parameters) {
+        const refless = k.parameters as OpenAPIV3.ParameterObject[]
+        const paths = refless.filter(a => a.in === 'path')
+        const query = refless.filter(a => a.in === 'query')
+        if (paths.length) slots.push({ name: 'path', schema: paramsObject(paths), optional: false })
+        if (query.length) {
+            const allOptional = query.every(a => !a.required)
+            slots.push({ name: 'query', schema: paramsObject(query), optional: allOptional })
+        }
+    }
+    const body = bodySlot(k)
+    if (body) slots.push(body)
+    return slots
+}
+
+const transformBuilder = <T extends OpenAPIV3.Document>(schema: T) => {
+    if (!schema.paths) return
+    const result = createWriter()
+    result.writeLine(builderImports)
+
+    const entries: { path: string; index: number; methods: { method: string; slots: Slot[] }[] }[] = []
+    let counter = 1
+    for (const path in schema.paths) {
+        const methods = Object.keys(schema.paths[path] ?? {})
+            .filter(a => _methods.includes(a)) as ("get" | "put" | "post" | "patch" | "delete")[]
+        entries.push({
+            path,
+            index: counter,
+            methods: methods.map(method => ({ method, slots: methodSlots(schema.paths![path]![method]!) }))
+        })
+        counter++
+    }
+
+    result.writeLine(builderBase)
+
+    for (const entry of entries) {
+        result.write(`const $${entry.index} = `).inlineBlock(() => {
+            for (let i = 0; i < entry.methods.length; i++) {
+                const { method, slots } = entry.methods[i]
+                result.write(method).write(": ").inlineBlock(() => {
+                    for (let j = 0; j < slots.length; j++) {
+                        const slot = slots[j]
+                        result.write(slot.name).write(": ").write(slot.schema)
+                        if (j < slots.length - 1) result.write(",").newLine()
+                    }
+                })
+                if (i < entry.methods.length - 1) result.write(",").newLine()
+            }
+        }).write(";").newLine().newLine()
+    }
+
+    result.write("type Routes = ").inlineBlock(() => {
+        for (const entry of entries) {
+            result.write(JSON.stringify(entry.path)).write(": ").inlineBlock(() => {
+                for (let i = 0; i < entry.methods.length; i++) {
+                    const { method, slots } = entry.methods[i]
+                    result.write(method).write(": ").inlineBlock(() => {
+                        for (let j = 0; j < slots.length; j++) {
+                            const slot = slots[j]
+                            const opt = slot.name === 'path' ? '' : (slot.optional ? '?' : '')
+                            result.write(slot.name).write(opt).write(": ")
+                                .write(`Static<typeof $${entry.index}.${method}.${slot.name}>`)
+                            if (j < slots.length - 1) result.write(",").newLine()
+                        }
+                    })
+                    if (i < entry.methods.length - 1) result.write(",").newLine()
+                }
+            }).newLine()
+        }
+    }).newLine().newLine()
+
+    const serverUrl = schema.servers?.[0]?.url
+    const defaultBase = typeof serverUrl === 'string' && serverUrl ? `baseUrl: ${JSON.stringify(serverUrl)}, ` : ''
+    result.write(`export const createApi = (config: ClientConfig = {}) => createClient<Routes>({ ${defaultBase}...config })`).newLine()
     return result.toString()
 }

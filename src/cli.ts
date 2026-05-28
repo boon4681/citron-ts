@@ -7,13 +7,14 @@ import { load } from "./loader";
 import { OpenAPIV3 } from 'openapi-types';
 import { exit } from 'node:process';
 import { join } from 'node:path';
+import pkg from '../package.json';
 
 const program = new Command();
 
 program
     .name('citron-ts')
     .description('CLI to some JavaScript string utilities')
-    .version('0.0.1', '-v');
+    .version(pkg.version, '-v, --version');
 
 program.command('pull')
     .description('Generate ts from openapi.json')
@@ -41,7 +42,7 @@ program.command('pull')
             exit(1)
         }
         s.start('Transforming to typescript');
-        const result = transform(openapi_content)
+        const result = transform(openapi_content, { adapter: config.experimental?.adapter })
         if (!result) throw Error("FAILED")
         s.stop('Transforming to typescript');
         if (!existsSync(config.out!)) {
