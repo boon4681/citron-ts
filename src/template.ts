@@ -20,14 +20,25 @@ export interface ClientConfig {
     init?: RequestInit
 }
 
-type Slots = { path?: unknown; query?: unknown; body?: unknown }
+type Slots = { path?: unknown; query?: unknown; body?: unknown; response?: unknown }
+
+export type Result<T> = T | { error: any }
+
+type InputKeys = 'path' | 'query' | 'body'
+
+type ResponseOf<S extends Slots> = S extends { response: infer R } ? R : unknown
+
+type Execute<S extends Slots> = {
+    execute(): Promise<Response>
+    execute(as: 'json'): Promise<Result<ResponseOf<S>>>
+}
 
 type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T]
 
 type Builder<S extends Slots, Filled extends keyof S = never> =
-    & { [K in Exclude<keyof S, Filled>]-?: (v: Exclude<S[K], undefined>) => Builder<S, Filled | K> }
-    & ([Exclude<RequiredKeys<S>, Filled>] extends [never]
-        ? { execute(): Promise<Response> }
+    & { [K in Exclude<Extract<keyof S, InputKeys>, Filled>]-?: (v: Exclude<S[K], undefined>) => Builder<S, Filled | K> }
+    & ([Exclude<Extract<RequiredKeys<S>, InputKeys>, Filled>] extends [never]
+        ? Execute<S>
         : {})
 
 type Client<R> = {
@@ -79,8 +90,20 @@ class RequestBuilder {
         const f = this.config.fetch ?? fetch
         return f(url, init)
     }
-    execute(): Promise<Response> {
-        return this.exec()
+    execute(): Promise<Response>
+    execute(as: 'json'): Promise<Result<any>>
+    async execute(as?: 'json'): Promise<unknown> {
+        const res = await this.exec()
+        if (as === 'json') {
+            let data: any
+            try {
+                data = await res.json()
+            } catch (error) {
+                return { error }
+            }
+            return res.ok ? data : { error: data }
+        }
+        return res
     }
 }
 

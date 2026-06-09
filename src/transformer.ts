@@ -206,6 +206,22 @@ const bodySlot = (k: OpenAPIV3.OperationObject): Slot | undefined => {
     return { name: 'body', schema, optional: rb.required !== true }
 }
 
+const responseSchema = (k: OpenAPIV3.OperationObject): string | undefined => {
+    const responses = k.responses as OpenAPIV3.ResponsesObject | undefined
+    if (!responses) return undefined
+    const codes = Object.keys(responses)
+    const pick = codes.find(c => c === '200')
+        ?? codes.find(c => c === '201')
+        ?? codes.find(c => /^2\d\d$/.test(c))
+        ?? (responses.default ? 'default' : undefined)
+    if (!pick) return undefined
+    const resp = responses[pick] as OpenAPIV3.ResponseObject
+    if (!resp || !resp.content) return undefined
+    const json = resp.content['application/json']
+    if (!json || !json.schema) return undefined
+    return toTypeBox(json.schema)
+}
+
 const methodSlots = (k: OpenAPIV3.OperationObject): Slot[] => {
     const slots: Slot[] = []
     if (k.parameters) {
@@ -228,7 +244,7 @@ const transformBuilder = <T extends OpenAPIV3.Document>(schema: T) => {
     const result = createWriter()
     result.writeLine(builderImports)
 
-    const entries: { path: string; index: number; methods: { method: string; slots: Slot[] }[] }[] = []
+    const entries: { path: string; index: number; methods: { method: string; slots: Slot[]; response?: string }[] }[] = []
     let counter = 1
     for (const path in schema.paths) {
         const methods = Object.keys(schema.paths[path] ?? {})
@@ -236,7 +252,11 @@ const transformBuilder = <T extends OpenAPIV3.Document>(schema: T) => {
         entries.push({
             path,
             index: counter,
-            methods: methods.map(method => ({ method, slots: methodSlots(schema.paths![path]![method]!) }))
+            methods: methods.map(method => ({
+                method,
+                slots: methodSlots(schema.paths![path]![method]!),
+                response: responseSchema(schema.paths![path]![method]!)
+            }))
         })
         counter++
     }
@@ -246,13 +266,14 @@ const transformBuilder = <T extends OpenAPIV3.Document>(schema: T) => {
     for (const entry of entries) {
         result.write(`const $${entry.index} = `).inlineBlock(() => {
             for (let i = 0; i < entry.methods.length; i++) {
-                const { method, slots } = entry.methods[i]
+                const { method, slots, response } = entry.methods[i]
                 result.write(method).write(": ").inlineBlock(() => {
                     for (let j = 0; j < slots.length; j++) {
                         const slot = slots[j]
                         result.write(slot.name).write(": ").write(slot.schema)
-                        if (j < slots.length - 1) result.write(",").newLine()
+                        if (j < slots.length - 1 || response) result.write(",").newLine()
                     }
+                    if (response) result.write("response: ").write(response)
                 })
                 if (i < entry.methods.length - 1) result.write(",").newLine()
             }
@@ -263,15 +284,16 @@ const transformBuilder = <T extends OpenAPIV3.Document>(schema: T) => {
         for (const entry of entries) {
             result.write(JSON.stringify(entry.path)).write(": ").inlineBlock(() => {
                 for (let i = 0; i < entry.methods.length; i++) {
-                    const { method, slots } = entry.methods[i]
+                    const { method, slots, response } = entry.methods[i]
                     result.write(method).write(": ").inlineBlock(() => {
                         for (let j = 0; j < slots.length; j++) {
                             const slot = slots[j]
                             const opt = slot.name === 'path' ? '' : (slot.optional ? '?' : '')
                             result.write(slot.name).write(opt).write(": ")
                                 .write(`Static<typeof $${entry.index}.${method}.${slot.name}>`)
-                            if (j < slots.length - 1) result.write(",").newLine()
+                            if (j < slots.length - 1 || response) result.write(",").newLine()
                         }
+                        if (response) result.write("response: ").write(`Static<typeof $${entry.index}.${method}.response>`)
                     })
                     if (i < entry.methods.length - 1) result.write(",").newLine()
                 }
