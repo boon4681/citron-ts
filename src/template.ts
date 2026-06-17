@@ -22,6 +22,10 @@ export interface ClientConfig {
 
 type Slots = { path?: unknown; query?: unknown; body?: unknown; response?: unknown }
 
+type BodyShape = 'json' | 'formData'
+type RouteMeta = { body?: BodyShape }
+type RoutesMeta = Record<string, Record<string, RouteMeta>>
+
 export type Result<T> = T | { error: any }
 
 type InputKeys = 'path' | 'query' | 'body'
@@ -52,7 +56,8 @@ class RequestBuilder {
     constructor(
         private template: string,
         private method: string,
-        private config: ClientConfig
+        private config: ClientConfig,
+        private meta: RouteMeta = {}
     ) { }
     path(v: Record<string, unknown>) { this.data.path = v; return this }
     query(v: Record<string, unknown>) { this.data.query = v; return this }
@@ -80,10 +85,21 @@ class RequestBuilder {
         }
         const init: RequestInit = { ...this.config.init, method: this.method.toUpperCase() }
         if (this.data.body !== undefined && this.data.body !== null) {
-            if (typeof FormData !== 'undefined' && this.data.body instanceof FormData) {
-                init.body = this.data.body
+            const body = this.data.body
+            if (typeof FormData !== 'undefined' && body instanceof FormData) {
+                init.body = body
+            } else if (this.meta.body === 'formData') {
+                const fd = new FormData()
+                if (body && typeof body === 'object') {
+                    for (const [k, val] of Object.entries(body as Record<string, unknown>)) {
+                        if (val === undefined || val === null) continue
+                        if (typeof Blob !== 'undefined' && val instanceof Blob) fd.append(k, val)
+                        else fd.append(k, String(val))
+                    }
+                }
+                init.body = fd
             } else {
-                init.body = JSON.stringify(this.data.body)
+                init.body = JSON.stringify(body)
                 init.headers = { 'content-type': 'application/json', ...(this.config.init?.headers as Record<string, string> ?? {}) }
             }
         }
@@ -107,10 +123,10 @@ class RequestBuilder {
     }
 }
 
-export const createClient = <R>(config: ClientConfig = {}): Client<R> => {
+export const createClient = <R>(routes: RoutesMeta, config: ClientConfig = {}): Client<R> => {
     return new Proxy({}, {
         get: (_t, path: string) => new Proxy({}, {
-            get: (_t2, method: string) => () => new RequestBuilder(path, method, config)
+            get: (_t2, method: string) => () => new RequestBuilder(path, method, config, routes[path]?.[method] ?? {})
         })
     }) as Client<R>
 }

@@ -31,6 +31,14 @@ function toTypeBox(schema: any): string {
         const variants = schema.allOf.map((subSchema: any) => toTypeBox(subSchema));
         return `Type.Intersect([${variants.join(', ')}])`;
     }
+    if (Array.isArray(schema.enum)) {
+        const literals = schema.enum.map((value: any) =>
+            value === null ? "Type.Null()" : `Type.Literal(${JSON.stringify(value)})`
+        );
+        if (literals.length === 0) return "Type.Never()";
+        if (literals.length === 1) return literals[0];
+        return `Type.Union([${literals.join(', ')}])`;
+    }
     switch (schema.type) {
         case 'string':
             return "Type.String()";
@@ -182,7 +190,7 @@ export const transform = <T extends OpenAPIV3.Document>(schema: T, options: Tran
     return result.toString()
 }
 
-type Slot = { name: 'path' | 'query' | 'body'; schema: string; optional: boolean }
+type Slot = { name: 'path' | 'query' | 'body'; schema: string; optional: boolean; shape?: 'json' | 'formData' }
 
 const paramsObject = (params: OpenAPIV3.ParameterObject[]): string => {
     const entries = params.map(p => {
@@ -199,11 +207,12 @@ const bodySlot = (k: OpenAPIV3.OperationObject): Slot | undefined => {
     const json = rb.content['application/json']
     const form = rb.content['multipart/form-data']
     let schema: string | undefined
-    if (json && form) schema = `Type.Union([${toTypeBox(json.schema)}, ${toTypeBox(form.schema)}])`
-    else if (json) schema = toTypeBox(json.schema)
-    else if (form && form.schema) schema = toTypeBox(form.schema)
+    let shape: 'json' | 'formData' | undefined
+    if (json && form) { schema = `Type.Union([${toTypeBox(json.schema)}, ${toTypeBox(form.schema)}])`; shape = 'json' }
+    else if (json) { schema = toTypeBox(json.schema); shape = 'json' }
+    else if (form && form.schema) { schema = toTypeBox(form.schema); shape = 'formData' }
     if (!schema) return undefined
-    return { name: 'body', schema, optional: rb.required !== true }
+    return { name: 'body', schema, optional: rb.required !== true, shape }
 }
 
 const responseSchema = (k: OpenAPIV3.OperationObject): string | undefined => {
@@ -280,7 +289,7 @@ const transformBuilder = <T extends OpenAPIV3.Document>(schema: T) => {
         }).write(";").newLine().newLine()
     }
 
-    result.write("type Routes = ").inlineBlock(() => {
+    result.write("export type Routes = ").inlineBlock(() => {
         for (const entry of entries) {
             result.write(JSON.stringify(entry.path)).write(": ").inlineBlock(() => {
                 for (let i = 0; i < entry.methods.length; i++) {
@@ -301,8 +310,25 @@ const transformBuilder = <T extends OpenAPIV3.Document>(schema: T) => {
         }
     }).newLine().newLine()
 
+    result.write("const routes = ").inlineBlock(() => {
+        for (let e = 0; e < entries.length; e++) {
+            const entry = entries[e]
+            const withBody = entry.methods.filter(m => m.slots.some(s => s.name === 'body'))
+            if (!withBody.length) continue
+            result.write(JSON.stringify(entry.path)).write(": ").inlineBlock(() => {
+                for (let i = 0; i < withBody.length; i++) {
+                    const m = withBody[i]
+                    const body = m.slots.find(s => s.name === 'body')!
+                    result.write(m.method).write(": ").write(`{ body: ${JSON.stringify(body.shape ?? 'json')} }`)
+                    if (i < withBody.length - 1) result.write(",").newLine()
+                }
+            })
+            if (e < entries.length - 1) result.write(",").newLine()
+        }
+    }).write(" as const").newLine().newLine()
+
     const serverUrl = schema.servers?.[0]?.url
     const defaultBase = typeof serverUrl === 'string' && serverUrl ? `baseUrl: ${JSON.stringify(serverUrl)}, ` : ''
-    result.write(`export const createApi = (config: ClientConfig = {}) => createClient<Routes>({ ${defaultBase}...config })`).newLine()
+    result.write(`export const createApi = (config: ClientConfig = {}) => createClient<Routes>(routes, { ${defaultBase}...config })`).newLine()
     return result.toString()
 }
