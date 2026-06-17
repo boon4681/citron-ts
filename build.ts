@@ -1,7 +1,9 @@
 import * as esbuild from 'esbuild';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as tsup from 'tsup';
 import pkg from './package.json';
+
+rmSync("./dist", { recursive: true })
 
 esbuild.buildSync({
 	entryPoints: ['./src/cli.ts'],

@@ -4,7 +4,7 @@ import { Type, type TSchema, type Static, type TOptional } from '@sinclair/typeb
 `
 
 export const builderImports = String.raw`
-import { Type, type TSchema, type Static } from '@sinclair/typebox'
+import { Type, type TSchema, type Static, type TOptional } from '@sinclair/typebox'
 `
 
 export const builderBase = String.raw`
@@ -23,12 +23,26 @@ export interface ClientConfig {
 type Slots = { path?: unknown; query?: unknown; body?: unknown; response?: unknown }
 
 type BodyShape = 'json' | 'formData'
-type RouteMeta = { body?: BodyShape }
+type RouteMeta = { 'body-type'?: BodyShape }
 type RoutesMeta = Record<string, Record<string, RouteMeta>>
 
 export type Result<T> = T | { error: any }
 
 type InputKeys = 'path' | 'query' | 'body'
+
+type SchemaKeys = 'path' | 'query' | 'body' | 'response'
+
+type Id<T> = { -readonly [K in keyof T]: T[K] } & {}
+
+type ExtractMethod<M> =
+    & { [K in keyof M as K extends SchemaKeys ? (M[K] extends TOptional<TSchema> ? never : K) : never]: M[K] extends TSchema ? Static<M[K]> : never }
+    & { [K in keyof M as K extends SchemaKeys ? (M[K] extends TOptional<TSchema> ? K : never) : never]?: M[K] extends TSchema ? Static<M[K]> : never }
+
+export type ExtractRoutes<R> = {
+    [P in keyof R]: {
+        [M in keyof R[P]]: Id<ExtractMethod<R[P][M]>>
+    }
+}
 
 type ResponseOf<S extends Slots> = S extends { response: infer R } ? R : unknown
 
@@ -88,7 +102,7 @@ class RequestBuilder {
             const body = this.data.body
             if (typeof FormData !== 'undefined' && body instanceof FormData) {
                 init.body = body
-            } else if (this.meta.body === 'formData') {
+            } else if (this.meta['body-type'] === 'formData') {
                 const fd = new FormData()
                 if (body && typeof body === 'object') {
                     for (const [k, val] of Object.entries(body as Record<string, unknown>)) {

@@ -289,46 +289,39 @@ const transformBuilder = <T extends OpenAPIV3.Document>(schema: T) => {
         }).write(";").newLine().newLine()
     }
 
-    result.write("export type Routes = ").inlineBlock(() => {
-        for (const entry of entries) {
+    result.write("export const Routes = ").inlineBlock(() => {
+        for (let e = 0; e < entries.length; e++) {
+            const entry = entries[e]
             result.write(JSON.stringify(entry.path)).write(": ").inlineBlock(() => {
                 for (let i = 0; i < entry.methods.length; i++) {
                     const { method, slots, response } = entry.methods[i]
+                    const body = slots.find(s => s.name === 'body')
                     result.write(method).write(": ").inlineBlock(() => {
+                        if (body) {
+                            result.write(`"body-type": ${JSON.stringify(body.shape ?? 'json')} as const`)
+                            if (slots.length || response) result.write(",").newLine()
+                        }
                         for (let j = 0; j < slots.length; j++) {
                             const slot = slots[j]
-                            const opt = slot.name === 'path' ? '' : (slot.optional ? '?' : '')
-                            result.write(slot.name).write(opt).write(": ")
-                                .write(`Static<typeof $${entry.index}.${method}.${slot.name}>`)
+                            const ref = `$${entry.index}.${method}.${slot.name}`
+                            const isOptional = slot.name !== 'path' && slot.optional
+                            result.write(slot.name).write(": ")
+                                .write(isOptional ? `Type.Optional(${ref})` : ref)
                             if (j < slots.length - 1 || response) result.write(",").newLine()
                         }
-                        if (response) result.write("response: ").write(`Static<typeof $${entry.index}.${method}.response>`)
+                        if (response) result.write("response: ").write(`$${entry.index}.${method}.response`)
                     })
                     if (i < entry.methods.length - 1) result.write(",").newLine()
-                }
-            }).newLine()
-        }
-    }).newLine().newLine()
-
-    result.write("const routes = ").inlineBlock(() => {
-        for (let e = 0; e < entries.length; e++) {
-            const entry = entries[e]
-            const withBody = entry.methods.filter(m => m.slots.some(s => s.name === 'body'))
-            if (!withBody.length) continue
-            result.write(JSON.stringify(entry.path)).write(": ").inlineBlock(() => {
-                for (let i = 0; i < withBody.length; i++) {
-                    const m = withBody[i]
-                    const body = m.slots.find(s => s.name === 'body')!
-                    result.write(m.method).write(": ").write(`{ body: ${JSON.stringify(body.shape ?? 'json')} }`)
-                    if (i < withBody.length - 1) result.write(",").newLine()
                 }
             })
             if (e < entries.length - 1) result.write(",").newLine()
         }
-    }).write(" as const").newLine().newLine()
+    }).newLine().newLine()
+
+    result.write("export type Routes = ExtractRoutes<typeof Routes>").newLine().newLine()
 
     const serverUrl = schema.servers?.[0]?.url
     const defaultBase = typeof serverUrl === 'string' && serverUrl ? `baseUrl: ${JSON.stringify(serverUrl)}, ` : ''
-    result.write(`export const createApi = (config: ClientConfig = {}) => createClient<Routes>(routes, { ${defaultBase}...config })`).newLine()
+    result.write(`export const createApi = (config: ClientConfig = {}) => createClient<Routes>(Routes as any, { ${defaultBase}...config })`).newLine()
     return result.toString()
 }
