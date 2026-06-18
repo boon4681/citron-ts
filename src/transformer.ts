@@ -51,6 +51,9 @@ function toTypeBox(schema: any): string {
         case 'null':
             return "Type.Null()";
         case 'array':
+            if (Array.isArray(schema.items)) {
+                return `Type.Tuple([${schema.items.map((item: any) => toTypeBox(item)).join(', ')}])`;
+            }
             return `Type.Array(${toTypeBox(schema.items || { type: 'any' })})`;
         case 'object': {
             const props = schema.properties || {};
